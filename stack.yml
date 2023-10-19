@@ -1,0 +1,21 @@
+version: 1.0
+provider:
+  name: openfaas
+  gateway: http://127.0.0.1:8080
+functions:
+  video-preview:
+    lang: python3-http
+    build_args:
+      ADDITIONAL_PACKAGE: "ffmpeg"
+    handler: ./video-preview
+    image: ttl.sh/video-preview:latest
+    environment:
+      s3_bucket: video-preview
+      write_timeout: 10m2s
+      read_timeout: 10m2s
+      exec_timeout: 10m
+    secrets:
+      - s3-key
+      - s3-secret
+
+

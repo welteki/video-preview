@@ -1,0 +1,4 @@
+environment:
+  s3_bucket: video-preview
+  s3_endpoint_url: https://fr-par-1.linodeobjects.com
+  s3_output_prefix: output

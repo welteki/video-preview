@@ -8,17 +8,20 @@ functions:
     build_args:
       ADDITIONAL_PACKAGE: "ffmpeg"
     handler: ./video-preview
-    image: ttl.sh/welteki/video-preview:latest
+    image: welteki/video-preview:0.0.1
     environment:
-      s3_bucket: video-preview
-      s3_endpoint_url: https://eu-central-1.linodeobjects.com
-      s3_output_prefix: output
       debug: false
       write_timeout: 10m2s
       read_timeout: 10m2s
       exec_timeout: 10m
+    environment_file:
+      - ./s3_config.yaml
     secrets:
-      - s3-key
-      - s3-secret
+      - video-preview-s3-key
+      - video-preview-s3-secret
 
-
+# Run
+# faas-cli template pull stack
+configuration:
+  templates:
+    - name: python3-http

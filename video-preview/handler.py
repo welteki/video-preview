@@ -16,9 +16,9 @@ s3_output_prefix = os.getenv("s3_output_prefix", "")
 debug = bool(os.getenv("debug"))
 
 def initS3():
-    with open('/var/openfaas/secrets/s3-key', 'r') as s:
+    with open('/var/openfaas/secrets/video-preview-s3-key', 'r') as s:
         s3Key = s.read()
-    with open('/var/openfaas/secrets/s3-secret', 'r') as s:
+    with open('/var/openfaas/secrets/video-preview-s3-secret', 'r') as s:
         s3Secret = s.read()
 
     session = boto3.Session(

@@ -12,7 +12,7 @@ from botocore.exceptions import ClientError
 s3Client = None
 s3_endpoint_url = os.getenv("s3_endpoint_url")
 s3_output_prefix = os.getenv("s3_output_prefix", "")
-debug = bool(os.getenv("debug"))
+debug = os.getenv("debug", "false").lower() == "true"
 
 def initS3():
     with open('/var/openfaas/secrets/video-preview-s3-key', 'r') as s:
@@ -117,7 +117,7 @@ def handle(event, context):
         if scale is not None:
             width, height = scale.split(':')
             stream = ffmpeg.filter(stream, 'scale', width=width, height=height, force_original_aspect_ratio='decrease')
-        
+
         (
             ffmpeg
             .output(stream, out.name, format=format)

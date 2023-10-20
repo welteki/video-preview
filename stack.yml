@@ -8,7 +8,7 @@ functions:
     build_args:
       ADDITIONAL_PACKAGE: "ffmpeg"
     handler: ./video-preview
-    image: welteki/video-preview:0.0.1
+    image: welteki/video-preview:0.0.2
     environment:
       debug: false
       write_timeout: 10m2s

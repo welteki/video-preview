@@ -11,7 +11,6 @@ from botocore.exceptions import ClientError
 
 s3Client = None
 s3_endpoint_url = os.getenv("s3_endpoint_url")
-s3_endpoint = urlparse(s3_endpoint_url)
 s3_output_prefix = os.getenv("s3_output_prefix", "")
 debug = bool(os.getenv("debug"))
 
@@ -26,7 +25,7 @@ def initS3():
         aws_secret_access_key=s3Secret,
     )
     
-    return session.client('s3', config=Config(signature_version='s3v4'), endpoint_url=s3_endpoint.geturl())
+    return session.client('s3', config=Config(signature_version='s3v4'), endpoint_url=s3_endpoint_url)
 
 def get_parts(in_file, sample_duration, sample_seconds=[]):
     parts = []
@@ -154,6 +153,8 @@ def handle(event, context):
     
     # Clean up
     os.remove(out.name)
+
+    s3_endpoint = urlparse(s3_endpoint_url)
 
     return {
         "statusCode": 200,

@@ -8,9 +8,12 @@ functions:
     build_args:
       ADDITIONAL_PACKAGE: "ffmpeg"
     handler: ./video-preview
-    image: ttl.sh/video-preview:latest
+    image: ttl.sh/welteki/video-preview:latest
     environment:
       s3_bucket: video-preview
+      s3_endpoint_url: https://eu-central-1.linodeobjects.com
+      s3_output_prefix: output
+      debug: false
       write_timeout: 10m2s
       read_timeout: 10m2s
       exec_timeout: 10m

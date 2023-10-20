@@ -109,7 +109,7 @@ def handle(event, context):
     # Generate video preview
     try:
         in_file = ffmpeg.input(input_url)
-        out = tempfile.NamedTemporaryFile()
+        out = tempfile.NamedTemporaryFile(delete=True)
 
         parts = get_parts(in_file, sample_duration=sample_duration, sample_seconds=sample_seconds)
         stream = ffmpeg.concat(*parts)
@@ -150,9 +150,6 @@ def handle(event, context):
             "statusCode": 500,
             "body": "Failed to get video info"
         }
-    
-    # Clean up
-    os.remove(out.name)
 
     s3_endpoint = urlparse(s3_endpoint_url)
 

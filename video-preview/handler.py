@@ -105,8 +105,6 @@ def parse_request(request_data):
     scale = request_data.get("scale")
     format = request_data.get("format", "mp4")
 
-    print(sample_seconds, flush=True)
-
     return {
         "input_url": input_url,
         "samples": samples,

@@ -9,12 +9,14 @@ import boto3
 from botocore.config import Config
 from botocore.exceptions import ClientError
 
-s3Client = None
-s3_endpoint_url = os.getenv("s3_endpoint_url")
+s3_client = None
+s3_endpoint = None
+
 s3_output_prefix = os.getenv("s3_output_prefix", "")
+s3_bucket_name = os.getenv('s3_bucket')
 debug = os.getenv("debug", "false").lower() == "true"
 
-def initS3():
+def init_s3():
     with open('/var/openfaas/secrets/video-preview-s3-key', 'r') as s:
         s3Key = s.read()
     with open('/var/openfaas/secrets/video-preview-s3-secret', 'r') as s:
@@ -24,6 +26,8 @@ def initS3():
         aws_access_key_id=s3Key,
         aws_secret_access_key=s3Secret,
     )
+
+    s3_endpoint_url = os.getenv("s3_endpoint_url")
     
     return session.client('s3', config=Config(signature_version='s3v4'), endpoint_url=s3_endpoint_url)
 
@@ -36,12 +40,12 @@ def get_parts(in_file, sample_duration, sample_seconds=[]):
     return parts
 
 def handle(event, context):
-    global s3Client
+    global s3_client, s3_endpoint
 
     # Initialise an S3 client upon first invocation
-    if s3Client == None:
-        s3Client = initS3()
-    bucket_name = os.getenv('s3_bucket')
+    if s3_client == None:
+        s3_client = init_s3()
+        s3_endpoint = urlparse(s3_client.meta.endpoint_url)
 
     data = json.loads(event.body)
 
@@ -133,7 +137,7 @@ def handle(event, context):
 
     # Upload video file to S3 bucket.
     try:
-        s3Client.upload_file(out.name, bucket_name, output_key, ExtraArgs={'ACL': 'public-read'})
+        s3_client.upload_file(out.name, s3_bucket_name, output_key, ExtraArgs={'ACL': 'public-read'})
     except ClientError as e:
         logging.error(e)
         return {
@@ -151,12 +155,10 @@ def handle(event, context):
             "body": "Failed to get video info"
         }
 
-    s3_endpoint = urlparse(s3_endpoint_url)
-
     return {
         "statusCode": 200,
         "body": {
-            "url": 'https://{}.{}/{}'.format(bucket_name, s3_endpoint.hostname, output_key),
+            "url": 'https://{}.{}/{}'.format(s3_bucket_name, s3_endpoint.hostname, output_key),
             "duration": out_probe["format"]["duration"],
             "size": out_probe["format"]["size"],
         }

@@ -7,7 +7,7 @@ With the video-preview function you can generate a video preview like the one on
 
 ## Get started
 
-The function accepts a download url for a video as inputs and will upload the resulting video to an S3 bucket.
+The function accepts a download url for a video as inputs and will upload the resulting video to an S3 bucket. The output video will have the same name as the input video.
 
 Before you deploy the function create an S3 bucket that can be used to upload the generated videos.
 
@@ -42,14 +42,17 @@ faas-cli deploy
 
 ## Generating a preview video
 
-Example request payload to generate a preview video:
+Example request to generate a preview video:
 
-```json
-{
-    "url": "https://video-preview.fr-par-1.linodeobjects.com/input/openfaas-homepage-vid.webm",
-    "samples": 4,
+```bash
+curl -s $OPENFAAS_URL/function/video-preview \
+  -H 'Content-Type: application/json' \
+  -d @- << EOF
+  { "url": "https://video-preview.fr-par-1.linodeobjects.com/input/openfaas-homepage-vid.webm",
+    "sample_seconds": 4,
     "sample_duration": 2,
-}
+  }
+EOF
 ```
 
 * `url` - Download url for the source video.
@@ -57,6 +60,18 @@ Example request payload to generate a preview video:
 * `sample_duration` - The duration of each sample.
 
 In this case the output video will be 8 seconds long, 4 samples of 2 seconds each. By default samples are taken at timestamps evenly spread out over the video.
+
+The resulting preview video will be uploaded to the configured S3 bucket with the same name as the input video.
+
+The function response will include the URL and some meta data for the results:
+
+```json
+{
+    "duration": "8.000000",
+    "size": "700509",
+    "url": "https://video-preview.fr-par-1.linodeobjects.com/output/openfaas-homepage-vid.mp4"
+}
+```
 
 ## Custom samples
 
@@ -85,7 +100,9 @@ By default the generated video will have the same size as the input video. You c
 
 ## Select the output format
 
-By default the output video will always be in `mp4` format. Set the `format` parameter in the request to select an other output format. 
+By default the output video will always be in `mp4` format. Set the `format` parameter in the request to select an other output format.
+
+Valid output formats are: `mp4`, `webm`, `avi`, `flv`, `mkv`, `mov`.
 
 ```json
 {

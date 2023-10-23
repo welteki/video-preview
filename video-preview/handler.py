@@ -56,6 +56,20 @@ def generate_video_preview(in_filename, out_filename, sample_duration, sample_se
         .run(quiet=quiet)
     )
 
+# Calculate sample_seconds based on the video duration, sample_duration and number of samples
+def calculate_sample_seconds(duration, samples, sample_duration):
+    sample_seconds = []
+    sample_spacing = duration / samples
+
+    # Sample spacing must always be larger than sample length
+    if sample_spacing < sample_duration:
+        raise Exception('sample_duration should be shorter then: {}'.format(sample_spacing))
+
+    for i in range(samples):
+        sample_seconds.append(sample_spacing * i)
+
+    return sample_seconds
+
 def parse_request(request_data):
     input_url = request_data["url"]
     if input_url is None:
@@ -74,27 +88,24 @@ def parse_request(request_data):
     if samples <= 0:
         return None, 400, "samples must be greater than 0"
     
-    # Calculate sample_seconds based on the video duration, sample_duration and number of samples
-    # when it is not set in the request body.
+    # Calculate sample_seconds when it is not set in the request body.
     if not sample_seconds:
         try:
             probe = ffmpeg.probe(input_url)
         except ffmpeg.Error as e:
             logging.error(e.stderr)
             return None, 500, "failed to get video info"
-    
-        duration = float(probe["format"]["duration"])
-        sample_spacing = duration / samples
 
-        # Sample spacing must always be larger than sample length
-        if sample_spacing < sample_duration:
-            return None, 400, 'sample_duration should be shorter then: {}'.format(sample_spacing)
-    
-        for i in range(samples):
-            sample_seconds.append(sample_spacing * i)
+        try:
+            duration = float(probe["format"]["duration"])
+            sample_seconds = calculate_sample_seconds(duration, samples, sample_duration)
+        except Exception as e:
+            return None, 400, e.message
     
     scale = request_data.get("scale")
     format = request_data.get("format", "mp4")
+
+    print(sample_seconds, flush=True)
 
     return {
         "input_url": input_url,

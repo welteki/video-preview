@@ -31,13 +31,79 @@ def init_s3():
     
     return session.client('s3', config=Config(signature_version='s3v4'), endpoint_url=s3_endpoint_url)
 
-def get_parts(in_file, sample_duration, sample_seconds=[]):
-    parts = []
+def sample_video(in_file, sample_duration, sample_seconds=[]):
+    samples = []
     for t in sample_seconds:
         stream = in_file.video.trim(start=t, duration=sample_duration).setpts('PTS-STARTPTS')
-        parts.append(stream)
+        samples.append(stream)
 
-    return parts
+    return samples
+
+def generate_video_preview(in_filename, out_filename, sample_duration, sample_seconds, scale, format, quiet):
+    in_file = ffmpeg.input(in_filename)
+
+    samples = sample_video(in_file, sample_duration=sample_duration, sample_seconds=sample_seconds)
+    stream = ffmpeg.concat(*samples)
+
+    if scale is not None:
+        width, height = scale.split(':')
+        stream = ffmpeg.filter(stream, 'scale', width=width, height=height, force_original_aspect_ratio='decrease')
+
+    (
+        ffmpeg
+        .output(stream, out_filename, format=format)
+        .overwrite_output()
+        .run(quiet=quiet)
+    )
+
+def parse_request(request_data):
+    input_url = request_data["url"]
+    if input_url is None:
+        return None, 400, "url is required"
+
+    samples = request_data.get("samples", 1)
+    sample_duration = request_data.get("sample_duration")
+    sample_seconds = request_data.get("sample_seconds", [])
+
+    if sample_duration is None:
+        return None, 400, "sample_duration is required"
+    
+    if sample_duration <= 0:
+        return 400, "sample_duration must be greater than 0"
+    
+    if samples <= 0:
+        return None, 400, "samples must be greater than 0"
+    
+    # Calculate sample_seconds based on the video duration, sample_duration and number of samples
+    # when it is not set in the request body.
+    if not sample_seconds:
+        try:
+            probe = ffmpeg.probe(input_url)
+        except ffmpeg.Error as e:
+            logging.error(e.stderr)
+            return None, 500, "failed to get video info"
+    
+        duration = float(probe["format"]["duration"])
+        sample_spacing = duration / samples
+
+        # Sample spacing must always be larger than sample length
+        if sample_spacing < sample_duration:
+            return None, 400, 'sample_duration should be shorter then: {}'.format(sample_spacing)
+    
+        for i in range(samples):
+            sample_seconds.append(sample_spacing * i)
+    
+    scale = request_data.get("scale")
+    format = request_data.get("format", "mp4")
+
+    return {
+        "input_url": input_url,
+        "samples": samples,
+        "sample_duration": sample_duration,
+        "sample_seconds": sample_seconds,
+        "scale": scale,
+        "format": format,
+    }, None, None
 
 def handle(event, context):
     global s3_client, s3_endpoint
@@ -47,112 +113,53 @@ def handle(event, context):
         s3_client = init_s3()
         s3_endpoint = urlparse(s3_client.meta.endpoint_url)
 
-    data = json.loads(event.body)
+    request_data = json.loads(event.body)
 
-    input_url = data["url"]
-
-    if input_url is None:
+    data, status_code, message = parse_request(request_data)
+    if data is None:
         return {
-            "statusCode": 400,
-            "body": "url is required"
+            "statusCode": status_code,
+            "body": message
         }
-    
-    samples = data.get("samples", 1)
-    sample_duration = data.get("sample_duration")
-    sample_seconds = data.get("sample_seconds", [])
 
-    if sample_duration is None:
-        return {
-            "statusCode": 400,
-            "body": "sample_duration is required"
-        }
-    
-    if sample_duration <= 0:
-        return {
-            "statusCode": 400,
-            "body": "sample_duration must be greater than 0"
-        }
-    
-    if samples <= 0:
-        return {
-            "statusCode": 400,
-            "body": "samples must be greater than 0"
-        }
-    
-    # Calculate sample_seconds based on the video duration, sample_duration and number of samples
-    # when it is not set in the request body.
-    if not sample_seconds:
-        try:
-            probe = ffmpeg.probe(input_url)
-        except ffmpeg.Error as e:
-            logging.error(e.stderr)
-            return {
-                "statusCode": 500,
-                "body": "Failed to get video info"
-            }
-    
-        duration = float(probe["format"]["duration"])
-        sample_spacing = duration / samples
-
-        # Sample spacing must always be larger than sample length
-        if sample_spacing < sample_duration:
-            return {
-                "statusCode": 400,
-                "body": 'sample_duration should be shorter then: {}'.format(sample_spacing)
-            }
-    
-        for i in range(samples):
-            sample_seconds.append(sample_spacing * i)
-
-    scale = data.get("scale")
-    format = data.get("format", "mp4")
+    input_url = data["input_url"]
+    sample_duration = data["sample_duration"]
+    sample_seconds = data["sample_seconds"]
+    scale = data["scale"]
+    format = data["format"]
 
     file_name, _ = os.path.basename(input_url).split(".")
     output_key = os.path.join(s3_output_prefix, file_name + "." + format)
+    out_file = tempfile.NamedTemporaryFile(delete=True)
     
     # Generate video preview
     try:
-        in_file = ffmpeg.input(input_url)
-        out = tempfile.NamedTemporaryFile(delete=True)
-
-        parts = get_parts(in_file, sample_duration=sample_duration, sample_seconds=sample_seconds)
-        stream = ffmpeg.concat(*parts)
-
-        if scale is not None:
-            width, height = scale.split(':')
-            stream = ffmpeg.filter(stream, 'scale', width=width, height=height, force_original_aspect_ratio='decrease')
-
-        (
-            ffmpeg
-            .output(stream, out.name, format=format)
-            .overwrite_output()
-            .run(quiet=not debug)
-        )
+        generate_video_preview(input_url, out_file.name, sample_duration, sample_seconds, scale, format, quiet=not debug)
     except Exception as e:
         logging.error(e)
         return {
             "statusCode": 500,
-            "body": "Failed to generate video preview"
+            "body": "failed to generate video preview"
         }
 
     # Upload video file to S3 bucket.
     try:
-        s3_client.upload_file(out.name, s3_bucket_name, output_key, ExtraArgs={'ACL': 'public-read'})
+        s3_client.upload_file(out_file.name, s3_bucket_name, output_key, ExtraArgs={'ACL': 'public-read'})
     except ClientError as e:
         logging.error(e)
         return {
             "statusCode": 500,
-            "body": "Failed to upload video preview"
+            "body": "failed to upload video preview"
         }
     
     try:
-       out_probe = ffmpeg.probe(out.name)
+       out_probe = ffmpeg.probe(out_file.name)
     except ffmpeg.Error as e:
         logging.error(e.stderr)
 
         return {
             "statusCode": 500,
-            "body": "Failed to get video info"
+            "body": "failed to get video info"
         }
 
     return {

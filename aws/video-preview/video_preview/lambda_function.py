@@ -52,7 +52,7 @@ def handler(event, context):
 
     # Upload video file to S3 bucket.
     try:
-        s3_client.upload_file(out_file.name, s3_bucket_name, output_key, ExtraArgs={'ACL': 'public-read'})
+        s3_client.upload_file(out_file.name, s3_bucket_name, output_key)
     except Exception as e:
         logging.error("failed to upload video preview")
         raise e

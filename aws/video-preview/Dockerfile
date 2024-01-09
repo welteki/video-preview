@@ -1,10 +1,10 @@
 FROM nixery.dev/shell/wget/gnutar/xz as ffmpeg
 
-RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz \
-    && wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz.md5
+RUN wget https://johnvansickle.com/ffmpeg/old-releases/ffmpeg-6.0.1-amd64-static.tar.xz
+    # && wget https://johnvansickle.com/ffmpeg/old-releases/ffmpeg-6.0.1-amd64-static.tar.xz.md5
 
-RUN md5sum -c ffmpeg-release-amd64-static.tar.xz.md5
-RUN tar xvf ffmpeg-release-amd64-static.tar.xz
+# RUN md5sum -c ffmpeg-6.0.1-amd64-static.tar.xz.md5
+RUN tar xvf ffmpeg-6.0.1-amd64-static.tar.xz
 
 RUN mkdir -p ffmpeg/bin
 RUN cp ffmpeg-*-amd64-static/ffmpeg ffmpeg/bin
